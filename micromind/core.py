@@ -331,7 +331,7 @@ class MicroMind(ABC):
         self.modules.device = self.device
 
     @torch.no_grad()
-    def compute_params(self):
+    def compute_params(self, str="total"):
         """Computes the number of parameters for the modules inside `self.modules`.
         Returns a dictionary with the parameter count for each module.
 
@@ -341,8 +341,12 @@ class MicroMind(ABC):
         """
         self.eval()
         params = {}
-        for k, m in self.modules.items():
-            params[k] = summary(m, verbose=0).total_params
+        if str == "total":
+            for k, m in self.modules.items():
+                params[k] = summary(m, verbose=0).total_params
+        if str == "trainable":
+            for k, m in self.modules.items():
+                params[k] = summary(m, verbose=0).trainable_params
 
         return params
 
@@ -460,6 +464,7 @@ class MicroMind(ABC):
         datasets: Dict = {},
         metrics: List[Metric] = [],
         checkpointer: Optional[Checkpointer] = None,
+        max_norm=10.0,
         debug: Optional[bool] = False,
     ) -> None:
         """
@@ -525,12 +530,11 @@ class MicroMind(ABC):
                     loss_epoch += loss.item()
 
                 self.accelerator.backward(loss)
+                self.accelerator.clip_grad_norm_(self.modules.parameters(), max_norm=max_norm)
                 self.opt.step()
 
                 loss_epoch += loss.item()
-                if hasattr(self, "lr_sched"):
-                    # ok for cos_lr
-                    self.lr_sched.step()
+
 
                 for m in self.metrics:
                     if (
@@ -577,6 +581,10 @@ class MicroMind(ABC):
 
             if e >= 1 and self.debug:
                 break
+
+            if hasattr(self, "lr_sched"):
+                # ok for cos_lr
+                self.lr_sched.step(val_metrics["val_loss"])
 
         self.on_train_end()
         return None

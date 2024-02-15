@@ -27,11 +27,17 @@ from micromind.utils.yolo import (
     preprocess,
 )
 from train import YOLO
+from micromind.networks.yolo import YOLOv8
+from micromind.utils.yolo import get_variant_multiples
+import micromind as mm
 
 
-class Inference(YOLO):
+class Inference(mm.MicroMind):
     def __init__(self, hparams):
-        super().__init__(hparams=hparams, m_cfg={})
+        super().__init__(hparams=hparams)
+        w, r, d = get_variant_multiples("n")
+        self.modules["yolov8n"] = YOLOv8(w,r,d, 80)
+        self.modules["yolov8n"].load_state_dict(torch.load("usable_yolov8n.pt"))
 
     def forward(self, img):
         """Executes the detection network.
@@ -45,12 +51,16 @@ class Inference(YOLO):
         -------
             Output of the detection network : torch.Tensor
         """
-        backbone = self.modules["backbone"](img)
-        neck_input = backbone[1]
-        neck_input.append(self.modules["sppf"](backbone[0]))
-        neck = self.modules["neck"](*neck_input)
-        head = self.modules["head"](neck)
-        return head
+        # backbone = self.modules["backbone"](img)
+        # neck_input = backbone[1]
+        # neck_input.append(self.modules["sppf"](backbone[0]))
+        # neck = self.modules["neck"](*neck_input)
+        # head = self.modules["head"](neck)
+        model = self.modules["yolov8n"]
+        return model
+
+    def compute_loss(self, pred, batch):
+        pass
 
 
 if __name__ == "__main__":
@@ -97,8 +107,11 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             st = time.time()
-            predictions = model(pre_processed_image)
+            ones = torch.ones([1, 3, 448, 640])
+            predictions = model.forward(pre_processed_image)
+            predictions = predictions(ones)
             print(f"Inference took {int(round(((time.time() - st) * 1000)))}ms")
+            breakpoint()
             post_predictions = postprocess(
                 preds=predictions[0], img=pre_processed_image, orig_imgs=image
             )
@@ -112,4 +125,4 @@ if __name__ == "__main__":
         )
 
         # Exporting onnx model.
-        model.export("model.onnx", "onnx", hparams.input_shape)
+        #model.export("model.onnx", "onnx", hparams.input_shape)
