@@ -152,19 +152,19 @@ class Loss(v8DetectionLoss):
         loss[2] *= self.hyp.dfl  # dfl gain
 
 
-        with open("dump.txt", "a") as f:
-            f.write("bbox loss {}".format(loss[0].item()))
-            f.write("\n")
-            f.write("cls loss {}".format(loss[1].item()))
-            f.write("\n")
-            f.write("dfl loss {}".format(loss[2].item()))
-            f.write("\n")
-            f.write("total {}".format(loss.sum().item()))
-            f.write("\n")
-            f.write("total * batch_size {}".format(loss.sum().item() * batch_size))
-            f.write("\n")
-
-        breakpoint()
+        # with open("dump.txt", "a") as f:
+            # f.write("bbox loss {}".format(loss[0].item()))
+            # f.write("\n")
+            # f.write("cls loss {}".format(loss[1].item()))
+            # f.write("\n")
+            # f.write("dfl loss {}".format(loss[2].item()))
+            # f.write("\n")
+            # f.write("total {}".format(loss.sum().item()))
+            # f.write("\n")
+            # f.write("total * batch_size {}".format(loss.sum().item() * batch_size))
+            # f.write("\n")
+# 
+        # breakpoint()
 
         # print(torch.std_mean(batch["img"]))
         # breakpoint()
