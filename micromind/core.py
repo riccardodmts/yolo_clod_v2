@@ -587,7 +587,7 @@ class MicroMind(ABC):
                 # self.lr_sched.step(val_metrics["val_loss"])
 
                 self.lr_sched.step()
-                print("sched step - new LR={self.lr_sched.get_lr()}")
+                print(f"sched step - new LR={self.lr_sched.get_lr()}")
 
         self.on_train_end()
         return None

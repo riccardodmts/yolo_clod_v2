@@ -111,7 +111,6 @@ class YOLO(mm.MicroMind):
             name, lr, momentum = ("AdamW", lr_fit, 0.9)
             # self.args.warmup_bias_lr = 0.0  # no higher than 0.01 for Adam
 
-        breakpoint()
         for module_name, module in model.named_modules():
             for param_name, param in module.named_parameters(recurse=False):
                 fullname = f"{module_name}.{param_name}" if module_name else param_name
