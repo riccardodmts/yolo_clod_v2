@@ -584,7 +584,10 @@ class MicroMind(ABC):
 
             if hasattr(self, "lr_sched"):
                 # ok for cos_lr
-                self.lr_sched.step(val_metrics["val_loss"])
+                # self.lr_sched.step(val_metrics["val_loss"])
+
+                self.lr_sched.step()
+                print("sched step - new LR={self.lr_sched.get_lr()}")
 
         self.on_train_end()
         return None

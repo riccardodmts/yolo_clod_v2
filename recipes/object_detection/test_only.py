@@ -17,6 +17,7 @@ import torch.optim as optim
 from prepare_data import create_loaders
 from ultralytics.utils.ops import scale_boxes, xywh2xyxy
 from yolo_loss import Loss
+import math
 
 import micromind as mm
 from micromind.networks import PhiNet
@@ -39,8 +40,8 @@ class YOLO(mm.MicroMind):
         super().__init__(*args, **kwargs)
         self.m_cfg = m_cfg
         w, r, d = get_variant_multiples("n")
-        self.modules["yolov8"] = YOLOv8(w,r,d, 80)
-        self.modules["yolov8"].load_state_dict(torch.load("usable_yolov8n.pt"))
+        self.modules["yolov8"] = YOLOv8(w,r,d, 20)
+        # self.modules["yolov8"].load_state_dict(torch.load("usable_yolov8n.pt"))
 
         self.criterion = Loss(self.m_cfg, self.modules["yolov8"].head, self.device)
 
@@ -104,7 +105,7 @@ class YOLO(mm.MicroMind):
                 f"ignoring 'lr0={lr}' and 'momentum={momentum}' and "
                 f"determining best 'optimizer', 'lr0' and 'momentum' automatically... "
             )
-            nc = getattr(model, "nc", 80)  # number of classes
+            nc = getattr(model, "nc", 20)  # number of classes
             lr_fit = round(0.002 * 5 / (4 + nc), 6)  # lr0 fit equation to 6 decimal places
             # name, lr, momentum = ("SGD", 0.01, 0.9) if iterations > 10000 else ("AdamW", lr_fit, 0.9)
             name, lr, momentum = ("AdamW", lr_fit, 0.9)
@@ -142,6 +143,18 @@ class YOLO(mm.MicroMind):
         )
         return optimizer
 
+    def _setup_scheduler(self, opt, lrf=0.01, lr0=0.01, cos_lr=True):
+        """Initialize training learning rate scheduler."""
+        def one_cycle(y1=0.0, y2=1.0, steps=100):
+            """Returns a lambda function for sinusoidal ramp from y1 to y2 https://arxiv.org/pdf/1812.01187.pdf."""
+            return lambda x: max((1 - math.cos(x * math.pi / steps)) / 2, 0) * (y2 - y1) + y1
+
+        if cos_lr:
+            self.lf = one_cycle(1, lrf, 500)  # cosine 1->hyp['lrf']
+        else:
+            self.lf = lambda x: max(1 - x / self.epochs, 0) * (1.0 - lrf) + lrf  # linear
+        return optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.lf)
+
     def configure_optimizers(self):
         """Configures the optimizer and the scheduler."""
         # opt = torch.optim.SGD(self.modules.parameters(), lr=1e-2, weight_decay=0.0005)
@@ -149,13 +162,11 @@ class YOLO(mm.MicroMind):
         opt = self.build_optimizer(
             self.modules, name="auto", lr=0.01, momentum=0.9
         )
-        # sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #     opt, T_max=14000, eta_min=1e-3
-        # )
+        sched = self._setup_scheduler(opt, 0.001)
         # sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
         #     opt, factor=0.7, patience=5, threshold=0.1
         # )
-        return opt#, sched
+        return opt, sched
 
     @torch.no_grad()
     def mAP(self, pred, batch):
