@@ -10,6 +10,7 @@ batch_size = 8
 data_cfg = "cfg/data/VOC.yaml"
 data_dir = "/coco"
 epochs = 100
+num_classes = 80
 
 # Model configuration
 input_shape = [3, 640, 640]
