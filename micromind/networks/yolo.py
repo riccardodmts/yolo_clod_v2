@@ -464,6 +464,10 @@ class Yolov8NeckOpt(Yolov8Neck):
         self.heads = heads
         self.up1 = Upsample(up[0], mode="nearest")
         self.up2 = Upsample(up[1], mode="nearest")
+
+        # print(filters, heads)
+        # breakpoint()
+
         self.n1 = XiConv(
             c_in=int(filters[1] + filters[2]),
             c_out=int(filters[1]),
@@ -471,6 +475,7 @@ class Yolov8NeckOpt(Yolov8Neck):
             gamma=3,
             skip_tensor_in=False,
         )
+
         self.n2 = XiConv(
             int(filters[0] + filters[1]),
             int(filters[0]),
@@ -483,6 +488,10 @@ class Yolov8NeckOpt(Yolov8Neck):
         the needed blocks. Otherwise the not needed blocks would be initialized
         (and thus would occupy space) but will never be used.
         """
+        self.n3 = None
+        self.n4 = None
+        self.n5 = None
+        self.n6 = None
         if self.heads[1] or self.heads[2]:
             self.n3 = XiConv(
                 int(filters[0]),

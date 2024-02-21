@@ -567,17 +567,18 @@ class MicroMind(ABC):
 
             if "val" in datasets:
                 val_metrics = self.validate()
-                if (
-                    self.accelerator.is_local_main_process
-                    and self.checkpointer is not None
-                ):
-                    self.checkpointer(
-                        self,
-                        train_metrics,
-                        val_metrics,
-                    )
             else:
                 val_metrics = train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
+
+            if (
+                self.accelerator.is_local_main_process
+                and self.checkpointer is not None
+            ):
+                self.checkpointer(
+                    self,
+                    train_metrics,
+                    val_metrics,
+                )
 
             if e >= 1 and self.debug:
                 break
