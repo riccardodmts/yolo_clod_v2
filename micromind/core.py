@@ -568,7 +568,8 @@ class MicroMind(ABC):
             if "val" in datasets:
                 val_metrics = self.validate()
             else:
-                val_metrics = train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
+                train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
+                val_metrics = train_metrics
 
             if (
                 self.accelerator.is_local_main_process
