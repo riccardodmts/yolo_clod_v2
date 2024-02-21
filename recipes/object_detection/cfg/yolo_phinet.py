@@ -6,9 +6,9 @@ Authors:
     - Francesco Paissan, 2023
 """
 # Data configuration
-batch_size = 16
+batch_size = 8
 data_cfg = "cfg/data/VOC.yaml"
-data_dir = "/data/VOC"
+data_dir = "data/VOC"
 epochs = 350
 num_classes = 80
 

@@ -38,20 +38,38 @@ class YOLO(mm.MicroMind):
     def __init__(self, m_cfg, hparams, *args, **kwargs):
         """Initializes the YOLO model."""
         super().__init__(*args, **kwargs)
+
         self.m_cfg = m_cfg
         w, r, d = get_variant_multiples("n")
+
         self.modules["backbone"] = PhiNet(
-            input_shape=hparams.input_shape,
-            alpha=hparams.alpha,
-            num_layers=hparams.num_layers,
-            beta=hparams.beta,
-            t_zero=hparams.t_zero,
+            (3, 128, 128),
+            alpha=1.1,
+            beta=0.75,
+            t_zero=5,
+            num_layers=8,
+            h_swish=False,
+            squeeze_excite=True,
             include_top=False,
+            num_classes=1000,
+            divisor=8,
             compatibility=False,
-            divisor=hparams.divisor,
             downsampling_layers=hparams.downsampling_layers,
             return_layers=hparams.return_layers,
         )
+
+        # PhiNet(
+            # input_shape=hparams.input_shape,
+            # alpha=hparams.alpha,
+            # num_layers=hparams.num_layers,
+            # beta=hparams.beta,
+            # t_zero=hparams.t_zero,
+            # include_top=False,
+            # compatibility=False,
+            # divisor=hparams.divisor,
+            # downsampling_layers=hparams.downsampling_layers,
+            # return_layers=hparams.return_layers,
+        # )
 
         sppf_ch, neck_filters, up, head_filters = self.get_parameters(
             heads=hparams.heads
@@ -63,10 +81,6 @@ class YOLO(mm.MicroMind):
         )
         self.modules["head"] = DetectionHead(hparams.num_classes, filters=head_filters, heads=hparams.heads)
         self.criterion = Loss(self.m_cfg, self.modules["head"], self.device)
-
-        # self.modules["yolov8"].load_state_dict(torch.load("usable_yolov8n.pt"))
-
-        # self.criterion = Loss(self.m_cfg, self.modules["yolov8"].head, self.device)
 
         print("Number of parameters for each module:")
         print(self.compute_params())
