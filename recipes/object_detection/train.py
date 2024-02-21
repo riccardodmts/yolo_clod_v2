@@ -233,7 +233,7 @@ class YOLO(mm.MicroMind):
         lrf *= lr0
 
         if cos_lr:
-            self.lf = one_cycle(1, lrf, 300)  # cosine 1->hyp['lrf']
+            self.lf = one_cycle(1, lrf, 350)  # cosine 1->hyp['lrf']
         else:
             self.lf = lambda x: max(1 - x / self.epochs, 0) * (1.0 - lrf) + lrf  # linear
         return optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.lf)

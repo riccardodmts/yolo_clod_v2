@@ -6,10 +6,10 @@ Authors:
     - Francesco Paissan, 2023
 """
 # Data configuration
-batch_size = 8
+batch_size = 16
 data_cfg = "cfg/data/VOC.yaml"
-data_dir = "/coco"
-epochs = 100
+data_dir = "/data/VOC"
+epochs = 350
 num_classes = 80
 
 # Model configuration
