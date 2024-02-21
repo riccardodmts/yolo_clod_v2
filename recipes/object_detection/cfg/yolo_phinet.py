@@ -13,7 +13,7 @@ epochs = 350
 num_classes = 80
 
 # Model configuration
-input_shape = [3, 640, 640]
+input_shape = [3, 320, 320]
 alpha = 2.3
 num_layers = 7
 beta = 0.75
