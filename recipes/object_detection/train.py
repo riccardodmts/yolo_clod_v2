@@ -76,7 +76,7 @@ class YOLO(mm.MicroMind):
         )
 
         self.modules["sppf"] = SPPF(*sppf_ch)
-        self.modules["neck"] = Yolov8Neck(
+        self.modules["neck"] = Yolov8NeckOpt(
             filters=neck_filters, up=up, heads=hparams.heads
         )
         self.modules["head"] = DetectionHead(hparams.num_classes, filters=head_filters, heads=hparams.heads)
