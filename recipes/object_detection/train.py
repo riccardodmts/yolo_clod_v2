@@ -363,7 +363,7 @@ if __name__ == "__main__":
 
     yolo_mind.train(
         epochs=hparams.epochs,
-        datasets={"train": train_loader, "val": val_loader},
+        datasets={"train": train_loader}, # , "val": val_loader},
         metrics=[mAP],
         checkpointer=checkpointer,
         debug=hparams.debug,
