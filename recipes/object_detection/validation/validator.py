@@ -71,6 +71,7 @@ class BaseValidator:
         """
         self.args = get_cfg(overrides=args)
         self.dataloader = dataloader
+        self.args.plot = False
         self.pbar = pbar
         self.stride = None
         self.data = None
@@ -84,6 +85,7 @@ class BaseValidator:
         self.nc = None
         self.iouv = None
         self.jdict = None
+        self.device = "cuda"
         self.speed = {
             "preprocess": 0.0,
             "inference": 0.0,
@@ -175,10 +177,10 @@ class BaseValidator:
 
         self.run_callbacks("on_val_start")
         dt = (
-            Profile(device=self.device),
-            Profile(device=self.device),
-            Profile(device=self.device),
-            Profile(device=self.device),
+            Profile(),
+            Profile(),
+            Profile(),
+            Profile(),
         )
         bar = TQDM(self.dataloader, desc=self.get_desc(), total=len(self.dataloader))
         self.init_metrics(de_parallel(model))
@@ -539,10 +541,10 @@ class DetectionValidator(BaseValidator):
                     for k in self.stats.keys():
                         self.stats[k].append(stat[k])
                     # TODO: obb has not supported confusion_matrix yet.
-                    if self.args.plots and self.args.task != "obb":
-                        self.confusion_matrix.process_batch(
-                            detections=None, gt_bboxes=bbox, gt_cls=cls
-                        )
+                    # if self.args.plots and self.args.task != "obb":
+                        # self.confusion_matrix.process_batch(
+                            # detections=None, gt_bboxes=bbox, gt_cls=cls
+                        # )
                 continue
 
             # Predictions
@@ -556,8 +558,8 @@ class DetectionValidator(BaseValidator):
             if nl:
                 stat["tp"] = self._process_batch(predn, bbox, cls)
                 # TODO: obb has not supported confusion_matrix yet.
-                if self.args.plots and self.args.task != "obb":
-                    self.confusion_matrix.process_batch(predn, bbox, cls)
+                # if self.args.plots and self.args.task != "obb":
+                    # self.confusion_matrix.process_batch(predn, bbox, cls)
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 
