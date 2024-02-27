@@ -8,7 +8,7 @@ Authors:
 # Data configuration
 batch_size = 8
 data_cfg = "cfg/data/VOC.yaml"
-data_dir = "data/VOC"
+data_dir = "/voc"
 epochs = 350
 num_classes = 80
 
