@@ -11,7 +11,7 @@ import sys
 from yolo_loss import Loss
 from validation.validator import DetectionValidator
 
-from train import YOLO, replace_datafolder
+from train_yolov8n import YOLO, replace_datafolder
 
 
 class YOLO(YOLO):
@@ -23,13 +23,7 @@ class YOLO(YOLO):
 
     def forward(self, img):
         """Runs the forward method by calling every module."""
-        backbone = self.modules["backbone"](img)
-        neck_input = backbone[1]
-        neck_input.append(self.modules["sppf"](backbone[0]))
-        neck = self.modules["neck"](*neck_input)
-        head = self.modules["head"](neck)
-
-        return head
+        return self.modules["yolov8"](img)
 
 
 if __name__ == "__main__":
@@ -44,7 +38,7 @@ if __name__ == "__main__":
 
     model_weights_path = sys.argv[2]
 
-    args = dict(model="yolov8n.pt", data="cfg/data/coco.yaml")
+    args = dict(model="yolov8n.pt", data="cfg/data/VOC.yaml")
     validator = DetectionValidator(args=args)
 
     model = YOLO(m_cfg, hparams)

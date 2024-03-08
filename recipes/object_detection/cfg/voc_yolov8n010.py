@@ -14,19 +14,16 @@ num_classes = 80
 
 # Model configuration
 input_shape = [3, 640, 640]
-alpha = 2.3
-num_layers = 7
-beta = 0.75
-t_zero = 5
-divisor = 8
-downsampling_layers = [5, 7]
-# heads = [True, True, True]
-# heads = [False, False, True]
-# heads = [False, True, False]
-heads = [True, False, False]
+# alpha = 2.3
+# num_layers = 7
+# beta = 0.75
+# t_zero = 5
+# divisor = 8
+# downsampling_layers = [5, 7]
+heads = [False, True, False]
 
 # just returning 2 intermediate layers (last is default)
-return_layers = [6, 8]
+# return_layers = [6, 8]
 
 # Placeholder for inference
 ckpt_pretrained = ""

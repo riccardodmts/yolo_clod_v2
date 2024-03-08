@@ -617,6 +617,7 @@ class DetectionHead(nn.Module):
         super().__init__()
         self.reg_max = 16
         self.nc = nc
+        filters = [f for f, h in zip(filters, heads) if h]
         self.nl = len(filters)
         self.no = nc + self.reg_max * 4
         self.stride = torch.tensor([8.0, 16.0, 32.0], dtype=torch.float16)
@@ -695,14 +696,14 @@ class YOLOv8(nn.Module):
         Number of classes to predict.
     """
 
-    def __init__(self, w, r, d, num_classes=80):
+    def __init__(self, w, r, d, num_classes=80, heads=[True, True, True]):
         super().__init__()
         self.net = Darknet(w, r, d)
         self.fpn = Yolov8Neck(
-            filters=[int(256 * w), int(512 * w), int(512 * w * r)], d=d
+            filters=[int(256 * w), int(512 * w), int(512 * w * r)], heads=heads,  d=d
         )
         self.head = DetectionHead(
-            num_classes, filters=(int(256 * w), int(512 * w), int(512 * w * r))
+            num_classes, filters=(int(256 * w), int(512 * w), int(512 * w * r)), heads=heads
         )
 
     def forward(self, x):

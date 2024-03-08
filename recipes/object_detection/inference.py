@@ -83,6 +83,8 @@ if __name__ == "__main__":
     img_paths = [sys.argv[2]]
     for img_path in img_paths:
         image = torchvision.io.read_image(img_path)
+        # if image.shape[0] == 4:
+        #     image = image[:3, :, :]  # Mantieni solo i primi 3 canali (RGB)
         out_paths = [
             (
                 output_folder_path
@@ -111,7 +113,7 @@ if __name__ == "__main__":
             predictions = model.forward(pre_processed_image)
             predictions = predictions(ones)
             print(f"Inference took {int(round(((time.time() - st) * 1000)))}ms")
-            breakpoint()
+            #breakpoint()
             post_predictions = postprocess(
                 preds=predictions[0], img=pre_processed_image, orig_imgs=image
             )
