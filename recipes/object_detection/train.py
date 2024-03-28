@@ -21,7 +21,13 @@ import math
 
 import micromind as mm
 from micromind.networks import PhiNet
-from micromind.networks.yolo import SPPF, DetectionHead, Yolov8Neck, Yolov8NeckOpt, Yolov8NeckOpt_gamma2
+from micromind.networks.yolo import (
+    SPPF,
+    DetectionHead,
+    Yolov8Neck,
+    Yolov8NeckOpt,
+    Yolov8NeckOpt_gamma2,
+)
 from micromind.utils import parse_configuration
 from micromind.utils.yolo import (
     load_config,
@@ -59,16 +65,16 @@ class YOLO(mm.MicroMind):
         )
 
         # PhiNet(
-            # input_shape=hparams.input_shape,
-            # alpha=hparams.alpha,
-            # num_layers=hparams.num_layers,
-            # beta=hparams.beta,
-            # t_zero=hparams.t_zero,
-            # include_top=False,
-            # compatibility=False,
-            # divisor=hparams.divisor,
-            # downsampling_layers=hparams.downsampling_layers,
-            # return_layers=hparams.return_layers,
+        # input_shape=hparams.input_shape,
+        # alpha=hparams.alpha,
+        # num_layers=hparams.num_layers,
+        # beta=hparams.beta,
+        # t_zero=hparams.t_zero,
+        # include_top=False,
+        # compatibility=False,
+        # divisor=hparams.divisor,
+        # downsampling_layers=hparams.downsampling_layers,
+        # return_layers=hparams.return_layers,
         # )
 
         sppf_ch, neck_filters, up, head_filters = self.get_parameters(
@@ -80,10 +86,12 @@ class YOLO(mm.MicroMind):
             filters=neck_filters, up=up, heads=hparams.heads
         )
         # self.modules["neck"] = Yolov8NeckOpt_gamma2(
-            # filters=neck_filters, up=up, heads=hparams.heads
+        # filters=neck_filters, up=up, heads=hparams.heads
         # )
 
-        self.modules["head"] = DetectionHead(hparams.num_classes, filters=head_filters, heads=hparams.heads)
+        self.modules["head"] = DetectionHead(
+            hparams.num_classes, filters=head_filters, heads=hparams.heads
+        )
         self.criterion = Loss(self.m_cfg, self.modules["head"], self.device)
 
         print("Number of parameters for each module:")
@@ -147,8 +155,9 @@ class YOLO(mm.MicroMind):
         """Preprocesses a batch of images by scaling and converting to float."""
         preprocessed_batch = {}
         preprocessed_batch["img"] = (
-            batch["img"].to(self.device, non_blocking=True).float() / 255
-            #batch["img"].to(self.device, non_blocking=True).float() *0 +1
+            batch["img"].to(self.device, non_blocking=True).float()
+            / 255
+            # batch["img"].to(self.device, non_blocking=True).float() *0 +1
         )
         for k in batch:
             if isinstance(batch[k], torch.Tensor) and k != "img":
@@ -164,7 +173,7 @@ class YOLO(mm.MicroMind):
         neck_input.append(self.modules["sppf"](backbone[0]))
         neck = self.modules["neck"](*neck_input)
         head = self.modules["head"](neck)
-    
+
         return head
 
     def compute_loss(self, pred, batch):
@@ -178,7 +187,9 @@ class YOLO(mm.MicroMind):
 
         return lossi_sum
 
-    def build_optimizer(self, model, name="auto", lr=0.001, momentum=0.9, decay=1e-5, iterations=1e6):
+    def build_optimizer(
+        self, model, name="auto", lr=0.001, momentum=0.9, decay=1e-5, iterations=1e6
+    ):
         """
         Constructs an optimizer for the given model, based on the specified optimizer name, learning rate, momentum,
         weight decay, and number of iterations.
@@ -198,7 +209,9 @@ class YOLO(mm.MicroMind):
         """
 
         g = [], [], []  # optimizer parameter groups
-        bn = tuple(v for k, v in nn.__dict__.items() if "Norm" in k)  # normalization layers, i.e. BatchNorm2d()
+        bn = tuple(
+            v for k, v in nn.__dict__.items() if "Norm" in k
+        )  # normalization layers, i.e. BatchNorm2d()
         if name == "auto":
             print(
                 f"optimizer: 'optimizer=auto' found, "
@@ -206,7 +219,9 @@ class YOLO(mm.MicroMind):
                 f"determining best 'optimizer', 'lr0' and 'momentum' automatically... "
             )
             nc = getattr(model, "nc", 80)  # number of classes
-            lr_fit = round(0.002 * 5 / (4 + nc), 6)  # lr0 fit equation to 6 decimal places
+            lr_fit = round(
+                0.002 * 5 / (4 + nc), 6
+            )  # lr0 fit equation to 6 decimal places
             # name, lr, momentum = ("SGD", 0.01, 0.9) if iterations > 10000 else ("AdamW", lr_fit, 0.9)
             name, lr, momentum = ("AdamW", lr_fit, 0.9)
             lr *= 10
@@ -223,7 +238,9 @@ class YOLO(mm.MicroMind):
                     g[0].append(param)
 
         if name in ("Adam", "Adamax", "AdamW", "NAdam", "RAdam"):
-            optimizer = getattr(optim, name, optim.Adam)(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
+            optimizer = getattr(optim, name, optim.Adam)(
+                g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0
+            )
         elif name == "RMSProp":
             optimizer = optim.RMSprop(g[2], lr=lr, momentum=momentum)
         elif name == "SGD":
@@ -235,35 +252,43 @@ class YOLO(mm.MicroMind):
                 "To request support for addition optimizers please visit https://github.com/ultralytics/ultralytics."
             )
 
-        optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
-        optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
+        optimizer.add_param_group(
+            {"params": g[0], "weight_decay": decay}
+        )  # add g0 with weight_decay
+        optimizer.add_param_group(
+            {"params": g[1], "weight_decay": 0.0}
+        )  # add g1 (BatchNorm2d weights)
         print(
             f"{optimizer:} {type(optimizer).__name__}(lr={lr}, momentum={momentum}) with parameter groups "
-            f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias(decay=0.0)'
+            f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias(decay=0.0)"
         )
         return optimizer, lr
 
     def _setup_scheduler(self, opt, lrf=0.01, lr0=0.01, cos_lr=True):
         """Initialize training learning rate scheduler."""
+
         def one_cycle(y1=0.0, y2=1.0, steps=100):
             """Returns a lambda function for sinusoidal ramp from y1 to y2 https://arxiv.org/pdf/1812.01187.pdf."""
-            return lambda x: max((1 - math.cos(x * math.pi / steps)) / 2, 0) * (y2 - y1) + y1
+            return (
+                lambda x: max((1 - math.cos(x * math.pi / steps)) / 2, 0) * (y2 - y1)
+                + y1
+            )
 
         lrf *= lr0
 
         if cos_lr:
             self.lf = one_cycle(1, lrf, 350)  # cosine 1->hyp['lrf']
         else:
-            self.lf = lambda x: max(1 - x / self.epochs, 0) * (1.0 - lrf) + lrf  # linear
+            self.lf = (
+                lambda x: max(1 - x / self.epochs, 0) * (1.0 - lrf) + lrf
+            )  # linear
         return optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.lf)
 
     def configure_optimizers(self):
         """Configures the optimizer and the scheduler."""
         # opt = torch.optim.SGD(self.modules.parameters(), lr=1e-2, weight_decay=0.0005)
         # opt = torch.optim.AdamW(self.modules.parameters(), lr=0.000119, weight_decay=0.0)
-        opt, lr = self.build_optimizer(
-            self.modules, name="auto", lr=0.01, momentum=0.9
-        )
+        opt, lr = self.build_optimizer(self.modules, name="auto", lr=0.01, momentum=0.9)
         sched = self._setup_scheduler(opt, 0.01, lr)
 
         return opt, sched
@@ -369,7 +394,7 @@ if __name__ == "__main__":
 
     yolo_mind.train(
         epochs=hparams.epochs,
-        datasets={"train": train_loader}, # , "val": val_loader},
+        datasets={"train": train_loader},  # , "val": val_loader},
         metrics=[mAP],
         checkpointer=checkpointer,
         debug=hparams.debug,

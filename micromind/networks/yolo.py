@@ -617,7 +617,7 @@ class DetectionHead(nn.Module):
         super().__init__()
         self.reg_max = 16
         self.nc = nc
-        filters = [f for f, h in zip(filters, heads) if h]
+        #filters = [f for f, h in zip(filters, heads) if h]
         self.nl = len(filters)
         self.no = nc + self.reg_max * 4
         self.stride = torch.tensor([8.0, 16.0, 32.0], dtype=torch.float16)

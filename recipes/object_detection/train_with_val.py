@@ -21,13 +21,7 @@ import math
 
 import micromind as mm
 from micromind.networks import PhiNet
-from micromind.networks.yolo import (
-    SPPF,
-    DetectionHead,
-    Yolov8Neck,
-    Yolov8NeckOpt,
-    Yolov8NeckOpt_gamma2,
-)
+from micromind.networks.yolo import SPPF, DetectionHead, Yolov8Neck, Yolov8NeckOpt
 from micromind.utils import parse_configuration
 from micromind.utils.yolo import (
     load_config,
@@ -38,6 +32,7 @@ from micromind.networks.yolo import YOLOv8
 import sys
 import os
 from micromind.utils.yolo import get_variant_multiples
+from validation.validator import DetectionValidator
 
 
 class YOLO(mm.MicroMind):
@@ -47,11 +42,106 @@ class YOLO(mm.MicroMind):
 
         self.m_cfg = m_cfg
         w, r, d = get_variant_multiples("n")
-        self.modules["yolov8"] = YOLOv8(w, r, d, 80, heads=hparams.heads)
-        self.criterion = Loss(self.m_cfg, self.modules["yolov8"].head, self.device)
+
+        self.modules["backbone"] = PhiNet(
+            (3, 128, 128),
+            alpha=1.1,
+            beta=0.75,
+            t_zero=5,
+            num_layers=8,
+            h_swish=False,
+            squeeze_excite=True,
+            include_top=False,
+            num_classes=1000,
+            divisor=8,
+            compatibility=False,
+            downsampling_layers=hparams.downsampling_layers,
+            return_layers=hparams.return_layers,
+        )
+
+        # PhiNet(
+        # input_shape=hparams.input_shape,
+        # alpha=hparams.alpha,
+        # num_layers=hparams.num_layers,
+        # beta=hparams.beta,
+        # t_zero=hparams.t_zero,
+        # include_top=False,
+        # compatibility=False,
+        # divisor=hparams.divisor,
+        # downsampling_layers=hparams.downsampling_layers,
+        # return_layers=hparams.return_layers,
+        # )
+
+        sppf_ch, neck_filters, up, head_filters = self.get_parameters(
+            heads=hparams.heads
+        )
+
+        self.modules["sppf"] = SPPF(*sppf_ch)
+        self.modules["neck"] = Yolov8Neck(
+            filters=neck_filters, up=up, heads=hparams.heads
+        )
+
+        self.modules["head"] = DetectionHead(
+            hparams.num_classes, filters=head_filters, heads=hparams.heads
+        )
+        self.criterion = Loss(self.m_cfg, self.modules["head"], self.device)
 
         print("Number of parameters for each module:")
         print(self.compute_params())
+
+    def get_parameters(self, heads=[True, True, True]):
+        """
+        Gets the parameters with which to initialize the network detection part
+        (SPPF block, Yolov8Neck, DetectionHead).
+
+        Arguments
+        ---------
+        heads : Optional[List]
+            List indicating whether each detection head is active.
+            Default: [True, True, True].
+
+        Returns
+        -------
+        Tuple containing the parameters for initializing the network detection part.
+        Contains
+            - Tuple (c1, c2): Tuple of input channel sizes for the SPPF block.
+            - List neck_filters: List of filter sizes for Yolov8Neck.
+            - List up: List of upsampling factors for Yolov8Neck.
+            - List head_filters: List of filter sizes for DetectionHead. : Tuple
+        """
+        in_shape = self.modules["backbone"].input_shape
+        x = torch.randn(1, *in_shape)
+        y = self.modules["backbone"](x)
+
+        c1 = c2 = y[0].shape[1]
+        sppf = SPPF(c1, c2)
+        out_sppf = sppf(y[0])
+
+        neck_filters = [y[1][0].shape[1], y[1][1].shape[1], out_sppf.shape[1]]
+        up = [2, 2]
+        up[0] = y[1][1].shape[2] / out_sppf.shape[2]
+        up[1] = y[1][0].shape[2] / (up[0] * out_sppf.shape[2])
+        temp = """The layers you selected are not valid. \
+            Please choose only layers between which the spatial resolution \
+            doubles every time. Eventually, you can achieve this by \
+            changing the downsampling layers. If you are trying to change \
+            the input resolution, make sure you also change it in the \
+            dataset configuration file and that it is a multiple of 4."""
+
+        assert up == [2, 2], " ".join(temp.split())
+
+        neck = Yolov8Neck(filters=neck_filters, up=up)
+        out_neck = neck(y[1][0], y[1][1], out_sppf)
+
+        head_filters = (
+            out_neck[0].shape[1],
+            out_neck[1].shape[1],
+            out_neck[2].shape[1],
+        )
+        # keep only the heads we want
+        head_filters = [head for heads, head in zip(heads, head_filters) if heads]
+
+        return (c1, c2), neck_filters, up, head_filters
 
     def preprocess_batch(self, batch):
         """Preprocesses a batch of images by scaling and converting to float."""
@@ -59,6 +149,7 @@ class YOLO(mm.MicroMind):
         preprocessed_batch["img"] = (
             batch["img"].to(self.device, non_blocking=True).float()
             / 255
+            # batch["img"].to(self.device, non_blocking=True).float() *0 +1
         )
         for k in batch:
             if isinstance(batch[k], torch.Tensor) and k != "img":
@@ -68,8 +159,29 @@ class YOLO(mm.MicroMind):
 
     def forward(self, batch):
         """Runs the forward method by calling every module."""
-        preprocessed_batch = self.preprocess_batch(batch)
-        return self.modules["yolov8"](preprocessed_batch["img"].to(self.device))
+        if self.modules.training:
+            preprocessed_batch = self.preprocess_batch(batch)
+            backbone = self.modules["backbone"](
+                preprocessed_batch["img"].to(self.device)
+            )
+        else:
+
+            if torch.is_tensor(batch):
+                backbone = self.modules["backbone"](batch)
+                neck_input = backbone[1]
+                neck_input.append(self.modules["sppf"](backbone[0]))
+                neck = self.modules["neck"](*neck_input)
+                head = self.modules["head"](neck)
+                return head
+
+            backbone = self.modules["backbone"](batch["img"] / 255)
+
+        neck_input = backbone[1]
+        neck_input.append(self.modules["sppf"](backbone[0]))
+        neck = self.modules["neck"](*neck_input)
+        head = self.modules["head"](neck)
+
+        return head
 
     def compute_loss(self, pred, batch):
         """Computes the loss."""
@@ -119,7 +231,7 @@ class YOLO(mm.MicroMind):
             )  # lr0 fit equation to 6 decimal places
             # name, lr, momentum = ("SGD", 0.01, 0.9) if iterations > 10000 else ("AdamW", lr_fit, 0.9)
             name, lr, momentum = ("AdamW", lr_fit, 0.9)
-            # lr *= 10
+            lr *= 10
             # self.args.warmup_bias_lr = 0.0  # no higher than 0.01 for Adam
 
         for module_name, module in model.named_modules():
@@ -189,48 +301,29 @@ class YOLO(mm.MicroMind):
         return opt, sched
 
     @torch.no_grad()
-    def mAP(self, pred, batch):
-        """Compute the mean average precision (mAP) for a batch of predictions.
-
-        Arguments
-        ---------
-        pred : torch.Tensor
-            Model predictions for the batch.
-        batch : dict
-            A dictionary containing batch information, including bounding boxes,
-            classes and shapes.
-
-        Returns
-        -------
-        torch.Tensor
-            A tensor containing the computed mean average precision (mAP) for the batch.
+    def on_train_epoch_end(self):
         """
-        preprocessed_batch = self.preprocess_batch(batch)
-        post_predictions = postprocess(
-            preds=pred[0], img=preprocessed_batch, orig_imgs=batch
+        Computes the mean average precision (mAP) at the end of the training epoch
+        and logs the metrics in `metrics.txt` inside the experiment folder.
+        """
+        args = dict(
+            model="yolov8n.pt", data=hparams.data_cfg, verbose=False, plots=False
         )
+        validator = DetectionValidator(args=args)
 
-        batch_bboxes_xyxy = xywh2xyxy(batch["bboxes"])
-        dim = batch["resized_shape"][0][0]
-        batch_bboxes_xyxy[:, :4] *= dim
+        val = validator(model=self)
 
-        batch_bboxes = []
-        for i in range(len(batch["batch_idx"])):
-            for b in range(len(batch_bboxes_xyxy[batch["batch_idx"] == i, :])):
-                batch_bboxes.append(
-                    scale_boxes(
-                        batch["resized_shape"][i],
-                        batch_bboxes_xyxy[batch["batch_idx"] == i, :][b],
-                        batch["ori_shape"][i],
-                    )
-                )
+        val_metrics = [
+            validator.metrics.box.map * 100,
+            validator.metrics.box.map50 * 100,
+            validator.metrics.box.map75 * 100,
+        ]
+        metrics_file = os.path.join(exp_folder, "metrics.txt")
+        metrics_info = f"Epoch {self.current_epoch}: mAP50-95(B): {round(val_metrics[0], 3)}%; mAP50(B): {round(val_metrics[1], 3)}%; mAP75(B): {round(val_metrics[2], 3)}%\n"
 
-        batch_bboxes = torch.stack(batch_bboxes).to(self.device)
-        mmAP = mean_average_precision(
-            post_predictions, batch, batch_bboxes, data_cfg["nc"]
-        )
-
-        return torch.Tensor([mmAP])
+        with open(metrics_file, "a") as file:
+            file.write(metrics_info)
+        return
 
 
 def replace_datafolder(hparams, data_cfg):
@@ -285,12 +378,14 @@ if __name__ == "__main__":
 
     yolo_mind = YOLO(m_cfg, hparams=hparams)
 
-    mAP = mm.Metric("mAP", yolo_mind.mAP, eval_only=True, eval_period=1)
+    # mAP = mm.Metric("mAP", yolo_mind.mAP, eval_only=True, eval_period=1)
 
     yolo_mind.train(
         epochs=hparams.epochs,
-        datasets={"train": train_loader},  # , "val": val_loader},
-        metrics=[mAP],
+        # datasets={"train": train_loader}, # , "val": val_loader},
+        datasets={"train": train_loader, "val": val_loader},
+        # metrics=[mAP],
+        metrics=[],
         checkpointer=checkpointer,
         debug=hparams.debug,
     )

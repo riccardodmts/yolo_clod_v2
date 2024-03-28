@@ -94,9 +94,12 @@ class BaseValidator:
         }
 
         self.save_dir = save_dir or get_save_dir(self.args)
-        (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(
-            parents=True, exist_ok=True
-        )
+
+        """This creates a folder `runs/detect/train` in which it's saved the result of every validation."""
+        if self.args.plots:
+            (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(
+                parents=True, exist_ok=True
+            )
         if self.args.conf is None:
             self.args.conf = 0.001  # default conf=0.001
         self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=1)

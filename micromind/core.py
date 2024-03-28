@@ -455,6 +455,10 @@ class MicroMind(ABC):
         """Runs at the end of each training. Cleans up before exiting."""
         pass
 
+    def on_train_epoch_end(self):
+        """Runs at the end of each training epoch. Cleans up before exiting."""
+        pass
+
     def eval(self):
         self.modules.eval()
 
@@ -570,6 +574,8 @@ class MicroMind(ABC):
             else:
                 train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
                 val_metrics = train_metrics
+
+            self.on_train_epoch_end()
 
             if (
                 self.accelerator.is_local_main_process
