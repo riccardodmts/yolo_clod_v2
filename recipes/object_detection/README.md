@@ -1,5 +1,6 @@
 ## Object Detection using YOLO
 
+**[16 Jan 2024]** Updated training code for better performance. Added ultralytics metrics calculation .<br />
 **[16 Jan 2024]** Added optimized YOLO neck, using XiConv. Fixed compatibility with ultralytics weights.<br />
 **[17 Dec 2023]** Add VOC dataset, selective head option, and instructions for dataset download.<br />
 **[1 Dec 2023]** Fix DDP handling and computational graph.

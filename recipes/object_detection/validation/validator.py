@@ -95,7 +95,8 @@ class BaseValidator:
 
         self.save_dir = save_dir or get_save_dir(self.args)
 
-        """This creates a folder `runs/detect/train` in which it's saved the result of every validation."""
+        """This creates a folder `runs/detect/train` in which it's saved
+        the result of every validation."""
         if self.args.plots:
             (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(
                 parents=True, exist_ok=True
@@ -545,9 +546,9 @@ class DetectionValidator(BaseValidator):
                         self.stats[k].append(stat[k])
                     # TODO: obb has not supported confusion_matrix yet.
                     # if self.args.plots and self.args.task != "obb":
-                        # self.confusion_matrix.process_batch(
-                            # detections=None, gt_bboxes=bbox, gt_cls=cls
-                        # )
+                    # self.confusion_matrix.process_batch(
+                    # detections=None, gt_bboxes=bbox, gt_cls=cls
+                    # )
                 continue
 
             # Predictions
@@ -562,7 +563,7 @@ class DetectionValidator(BaseValidator):
                 stat["tp"] = self._process_batch(predn, bbox, cls)
                 # TODO: obb has not supported confusion_matrix yet.
                 # if self.args.plots and self.args.task != "obb":
-                    # self.confusion_matrix.process_batch(predn, bbox, cls)
+                # self.confusion_matrix.process_batch(predn, bbox, cls)
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 

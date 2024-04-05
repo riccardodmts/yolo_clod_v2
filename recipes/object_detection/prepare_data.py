@@ -6,6 +6,7 @@ Authors:
     - Matteo Beltrami, 2023
     - Francesco Paissan, 2023
 """
+
 from typing import Dict
 import os
 

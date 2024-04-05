@@ -27,40 +27,21 @@ from micromind.utils.yolo import (
     preprocess,
 )
 from train import YOLO
-from micromind.networks.yolo import YOLOv8
-from micromind.utils.yolo import get_variant_multiples
-import micromind as mm
+from micromind.utils.yolo import load_config
 
 
-class Inference(mm.MicroMind):
-    def __init__(self, hparams):
-        super().__init__(hparams=hparams)
-        w, r, d = get_variant_multiples("n")
-        self.modules["yolov8n"] = YOLOv8(w,r,d, 80)
-        self.modules["yolov8n"].load_state_dict(torch.load("usable_yolov8n.pt"))
+class Inference(YOLO):
+    def __init__(self, m_cfg, hparams):
+        super().__init__(m_cfg, hparams=hparams)
 
-    def forward(self, img):
-        """Executes the detection network.
-
-        Arguments
-        ---------
-        bacth : List[torch.Tensor]
-            Input to the detection network.
-
-        Returns
-        -------
-            Output of the detection network : torch.Tensor
-        """
-        # backbone = self.modules["backbone"](img)
-        # neck_input = backbone[1]
-        # neck_input.append(self.modules["sppf"](backbone[0]))
-        # neck = self.modules["neck"](*neck_input)
-        # head = self.modules["head"](neck)
-        model = self.modules["yolov8n"]
-        return model
-
-    def compute_loss(self, pred, batch):
-        pass
+    def forward(self, batch):
+        """Runs the forward method by calling every module."""
+        backbone = self.modules["backbone"](batch)
+        neck_input = backbone[1]
+        neck_input.append(self.modules["sppf"](backbone[0]))
+        neck = self.modules["neck"](*neck_input)
+        head = self.modules["head"](neck)
+        return head
 
 
 if __name__ == "__main__":
@@ -97,7 +78,8 @@ if __name__ == "__main__":
 
         pre_processed_image = preprocess(image)
 
-        model = Inference(hparams)
+        m_cfg, data_cfg = load_config(hparams.data_cfg)
+        model = Inference(m_cfg, hparams=hparams)
         # Load pretrained if passed.
         if hparams.ckpt_pretrained != "":
             model.load_modules(hparams.ckpt_pretrained)
@@ -109,14 +91,13 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             st = time.time()
-            ones = torch.ones([1, 3, 448, 640])
             predictions = model.forward(pre_processed_image)
-            predictions = predictions(ones)
             print(f"Inference took {int(round(((time.time() - st) * 1000)))}ms")
-            #breakpoint()
+            breakpoint()
             post_predictions = postprocess(
                 preds=predictions[0], img=pre_processed_image, orig_imgs=image
             )
+            breakpoint()
 
         class_labels = [s.strip() for s in open(hparams.coco_names, "r").readlines()]
         draw_bounding_boxes_and_save(

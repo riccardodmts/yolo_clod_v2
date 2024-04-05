@@ -7,6 +7,7 @@ Authors:
     - Matteo Beltrami, 2023
     - Francesco Paissan, 2023
 """
+
 import torch
 import torch.nn as nn
 from ultralytics.utils.loss import BboxLoss, v8DetectionLoss
@@ -151,19 +152,18 @@ class Loss(v8DetectionLoss):
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
 
-
         # with open("dump.txt", "a") as f:
-            # f.write("bbox loss {}".format(loss[0].item()))
-            # f.write("\n")
-            # f.write("cls loss {}".format(loss[1].item()))
-            # f.write("\n")
-            # f.write("dfl loss {}".format(loss[2].item()))
-            # f.write("\n")
-            # f.write("total {}".format(loss.sum().item()))
-            # f.write("\n")
-            # f.write("total * batch_size {}".format(loss.sum().item() * batch_size))
-            # f.write("\n")
-# 
+        # f.write("bbox loss {}".format(loss[0].item()))
+        # f.write("\n")
+        # f.write("cls loss {}".format(loss[1].item()))
+        # f.write("\n")
+        # f.write("dfl loss {}".format(loss[2].item()))
+        # f.write("\n")
+        # f.write("total {}".format(loss.sum().item()))
+        # f.write("\n")
+        # f.write("total * batch_size {}".format(loss.sum().item() * batch_size))
+        # f.write("\n")
+        #
         # breakpoint()
 
         # print(torch.std_mean(batch["img"]))

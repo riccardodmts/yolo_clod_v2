@@ -527,6 +527,7 @@ class Yolov8NeckOpt(Yolov8Neck):
                 skip_tensor_in=False,
             )
 
+
 class Yolov8NeckOpt_gamma2(Yolov8Neck):
     def __init__(
         self, filters=[256, 512, 768], up=[2, 2], heads=[True, True, True], d=1
@@ -535,9 +536,6 @@ class Yolov8NeckOpt_gamma2(Yolov8Neck):
         self.heads = heads
         self.up1 = Upsample(up[0], mode="nearest")
         self.up2 = Upsample(up[1], mode="nearest")
-
-        # print(filters, heads)
-        # breakpoint()
 
         self.n1 = XiConv(
             c_in=int(filters[1] + filters[2]),
@@ -617,7 +615,7 @@ class DetectionHead(nn.Module):
         super().__init__()
         self.reg_max = 16
         self.nc = nc
-        #filters = [f for f, h in zip(filters, heads) if h]
+        # filters = [f for f, h in zip(filters, heads) if h]
         self.nl = len(filters)
         self.no = nc + self.reg_max * 4
         self.stride = torch.tensor([8.0, 16.0, 32.0], dtype=torch.float16)
@@ -700,10 +698,12 @@ class YOLOv8(nn.Module):
         super().__init__()
         self.net = Darknet(w, r, d)
         self.fpn = Yolov8Neck(
-            filters=[int(256 * w), int(512 * w), int(512 * w * r)], heads=heads,  d=d
+            filters=[int(256 * w), int(512 * w), int(512 * w * r)], heads=heads, d=d
         )
         self.head = DetectionHead(
-            num_classes, filters=(int(256 * w), int(512 * w), int(512 * w * r)), heads=heads
+            num_classes,
+            filters=(int(256 * w), int(512 * w), int(512 * w * r)),
+            heads=heads,
         )
 
     def forward(self, x):

@@ -5,6 +5,7 @@ multi-gpu and FP16 training with HF Accelerate and much more.
 Authors:
     - Francesco Paissan, 2023
 """
+
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from dataclasses import dataclass
@@ -534,11 +535,12 @@ class MicroMind(ABC):
                     loss_epoch += loss.item()
 
                 self.accelerator.backward(loss)
-                self.accelerator.clip_grad_norm_(self.modules.parameters(), max_norm=max_norm)
+                self.accelerator.clip_grad_norm_(
+                    self.modules.parameters(), max_norm=max_norm
+                )
                 self.opt.step()
 
                 loss_epoch += loss.item()
-
 
                 for m in self.metrics:
                     if (
@@ -577,10 +579,7 @@ class MicroMind(ABC):
 
             self.on_train_epoch_end()
 
-            if (
-                self.accelerator.is_local_main_process
-                and self.checkpointer is not None
-            ):
+            if self.accelerator.is_local_main_process and self.checkpointer is not None:
                 self.checkpointer(
                     self,
                     train_metrics,

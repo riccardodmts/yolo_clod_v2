@@ -422,7 +422,7 @@ class AutoBackend(nn.Module):
             names = default_class_names(data)
         names = check_class_names(names)
 
-        """Disable gradients"""
+        """Disable gradients since this is only used in validation."""
         # if pt:
         #     for p in model.parameters():
         #         p.requires_grad = False

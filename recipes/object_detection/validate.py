@@ -1,14 +1,21 @@
-from micromind.networks.yolo import Yolov8Neck, DetectionHead, SPPF
-from micromind.networks import PhiNet
-import torch
-import micromind as mm
+"""
+YOLO training.
+
+This code allows you to validate an object detection model.
+
+To run this script, you can start it with:
+    python validate.py cfg/<cfg_file>.py <checkpoint_path>
+
+Authors:
+    - Matteo Beltrami, 2024
+    - Francesco Paissan, 2024
+"""
 
 from micromind.utils import parse_configuration
 from micromind.utils.yolo import (
     load_config,
 )
 import sys
-from yolo_loss import Loss
 from validation.validator import DetectionValidator
 
 from train import YOLO, replace_datafolder
@@ -24,8 +31,11 @@ class YOLO(YOLO):
     def forward(self, img):
         """Runs the forward method by calling every module."""
         backbone = self.modules["backbone"](img)
-        neck_input = backbone[1]
-        neck_input.append(self.modules["sppf"](backbone[0]))
+        if "sppf" in self.modules.keys():
+            neck_input = backbone[1]
+            neck_input.append(self.modules["sppf"](backbone[0]))
+        else:
+            neck_input = backbone
         neck = self.modules["neck"](*neck_input)
         head = self.modules["head"](neck)
 
@@ -43,8 +53,7 @@ if __name__ == "__main__":
     m_cfg.imgsz = hparams.input_shape[-1]  # temp solution
 
     model_weights_path = sys.argv[2]
-
-    args = dict(model="yolov8n.pt", data="cfg/data/coco.yaml")
+    args = dict(model="yolov8n.pt", data=hparams.data_cfg, verbose=False, plots=False)
     validator = DetectionValidator(args=args)
 
     model = YOLO(m_cfg, hparams)
