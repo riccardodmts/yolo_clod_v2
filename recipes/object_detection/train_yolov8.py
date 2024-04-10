@@ -4,11 +4,11 @@ YOLO training.
 This code allows you to train an object detection model with the YOLOv8 neck and loss.
 
 To run this script, you can start it with:
-    python train.py cfg/yolo_phinet.py
+    python train_yolov8.py cfg/<cfg_file>.py
 
 Authors:
-    - Matteo Beltrami, 2023
-    - Francesco Paissan, 2023
+    - Matteo Beltrami, 2024
+    - Francesco Paissan, 2024
 """
 
 import torch
@@ -19,13 +19,11 @@ from yolo_loss import Loss
 import math
 
 import micromind as mm
-from micromind.networks import PhiNet
-from micromind.networks.yolo import SPPF, Yolov8Neck, DetectionHead
+from micromind.networks.yolo import Darknet, Yolov8Neck, DetectionHead
 from micromind.utils import parse_configuration
-from micromind.utils.yolo import load_config
+from micromind.utils.yolo import get_variant_multiples, load_config
 import sys
 import os
-from micromind.utils.yolo import get_variant_multiples
 from validation.validator import DetectionValidator
 
 
@@ -37,92 +35,21 @@ class YOLO(mm.MicroMind):
         self.m_cfg = m_cfg
         w, r, d = get_variant_multiples("n")
 
-        self.modules["backbone"] = PhiNet(
-            input_shape=hparams.input_shape,
-            alpha=hparams.alpha,
-            beta=hparams.beta,
-            t_zero=hparams.t_zero,
-            num_layers=hparams.num_layers,
-            h_swish=False,
-            squeeze_excite=True,
-            include_top=False,
-            num_classes=hparams.num_classes,
-            divisor=hparams.divisor,
-            compatibility=False,
-            downsampling_layers=hparams.downsampling_layers,
-            return_layers=hparams.return_layers,
-        )
-
-        sppf_ch, neck_filters, up, head_filters = self.get_parameters(
-            heads=hparams.heads
-        )
-
-        self.modules["sppf"] = SPPF(*sppf_ch)
+        self.modules["backbone"] = Darknet(w, r, d)
         self.modules["neck"] = Yolov8Neck(
-            filters=neck_filters, up=up, heads=hparams.heads
+            filters=[int(256 * w), int(512 * w), int(512 * w * r)],
+            heads=hparams.heads,
+            d=d,
         )
-
         self.modules["head"] = DetectionHead(
-            hparams.num_classes, filters=head_filters, heads=hparams.heads
+            hparams.num_classes,
+            filters=(int(256 * w), int(512 * w), int(512 * w * r)),
+            heads=hparams.heads,
         )
         self.criterion = Loss(self.m_cfg, self.modules["head"], self.device)
 
         print("Number of parameters for each module:")
         print(self.compute_params())
-
-    def get_parameters(self, heads=[True, True, True]):
-        """
-        Gets the parameters with which to initialize the network detection part
-        (SPPF block, Yolov8Neck, DetectionHead).
-
-        Arguments
-        ---------
-        heads : Optional[List]
-            List indicating whether each detection head is active.
-            Default: [True, True, True].
-
-        Returns
-        -------
-        Tuple containing the parameters for initializing the network detection part.
-        Contains
-            - Tuple (c1, c2): Tuple of input channel sizes for the SPPF block.
-            - List neck_filters: List of filter sizes for Yolov8Neck.
-            - List up: List of upsampling factors for Yolov8Neck.
-            - List head_filters: List of filter sizes for DetectionHead. : Tuple
-        """
-        in_shape = self.modules["backbone"].input_shape
-        x = torch.randn(1, *in_shape)
-        y = self.modules["backbone"](x)
-
-        c1 = c2 = y[0].shape[1]
-        sppf = SPPF(c1, c2)
-        out_sppf = sppf(y[0])
-
-        neck_filters = [y[1][0].shape[1], y[1][1].shape[1], out_sppf.shape[1]]
-        up = [2, 2]
-        up[0] = y[1][1].shape[2] / out_sppf.shape[2]
-        up[1] = y[1][0].shape[2] / (up[0] * out_sppf.shape[2])
-        temp = """The layers you selected are not valid. \
-            Please choose only layers between which the spatial resolution \
-            doubles every time. Eventually, you can achieve this by \
-            changing the downsampling layers. If you are trying to change \
-            the input resolution, make sure you also change it in the \
-            dataset configuration file and that it is a multiple of 4."""
-
-        assert up == [2, 2], " ".join(temp.split())
-
-        neck = Yolov8Neck(filters=neck_filters, up=up)
-        out_neck = neck(y[1][0], y[1][1], out_sppf)
-
-        head_filters = (
-            out_neck[0].shape[1],
-            out_neck[1].shape[1],
-            out_neck[2].shape[1],
-        )
-        # keep only the heads we want
-        head_filters = [head for heads, head in zip(heads, head_filters) if heads]
-
-        return (c1, c2), neck_filters, up, head_filters
 
     def preprocess_batch(self, batch):
         """Preprocesses a batch of images by scaling and converting to float."""
@@ -147,16 +74,22 @@ class YOLO(mm.MicroMind):
 
             if torch.is_tensor(batch):
                 backbone = self.modules["backbone"](batch)
-                neck_input = backbone[1]
-                neck_input.append(self.modules["sppf"](backbone[0]))
+                if "sppf" in self.modules.keys():
+                    neck_input = backbone[1]
+                    neck_input.append(self.modules["sppf"](backbone[0]))
+                else:
+                    neck_input = backbone
                 neck = self.modules["neck"](*neck_input)
                 head = self.modules["head"](neck)
                 return head
 
             backbone = self.modules["backbone"](batch["img"] / 255)
 
-        neck_input = backbone[1]
-        neck_input.append(self.modules["sppf"](backbone[0]))
+        if "sppf" in self.modules.keys():
+            neck_input = backbone[1]
+            neck_input.append(self.modules["sppf"](backbone[0]))
+        else:
+            neck_input = backbone
         neck = self.modules["neck"](*neck_input)
         head = self.modules["head"](neck)
 

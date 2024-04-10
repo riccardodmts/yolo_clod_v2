@@ -5,6 +5,7 @@ multi-gpu and FP16 training with HF Accelerate and much more.
 Authors:
     - Francesco Paissan, 2023
 """
+
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from dataclasses import dataclass
@@ -331,7 +332,7 @@ class MicroMind(ABC):
         self.modules.device = self.device
 
     @torch.no_grad()
-    def compute_params(self):
+    def compute_params(self, str="total"):
         """Computes the number of parameters for the modules inside `self.modules`.
         Returns a dictionary with the parameter count for each module.
 
@@ -341,8 +342,12 @@ class MicroMind(ABC):
         """
         self.eval()
         params = {}
-        for k, m in self.modules.items():
-            params[k] = summary(m, verbose=0).total_params
+        if str == "total":
+            for k, m in self.modules.items():
+                params[k] = summary(m, verbose=0).total_params
+        if str == "trainable":
+            for k, m in self.modules.items():
+                params[k] = summary(m, verbose=0).trainable_params
 
         return params
 
@@ -451,6 +456,10 @@ class MicroMind(ABC):
         """Runs at the end of each training. Cleans up before exiting."""
         pass
 
+    def on_train_epoch_end(self):
+        """Runs at the end of each training epoch. Cleans up before exiting."""
+        pass
+
     def eval(self):
         self.modules.eval()
 
@@ -460,6 +469,7 @@ class MicroMind(ABC):
         datasets: Dict = {},
         metrics: List[Metric] = [],
         checkpointer: Optional[Checkpointer] = None,
+        max_norm=10.0,
         debug: Optional[bool] = False,
     ) -> None:
         """
@@ -525,12 +535,12 @@ class MicroMind(ABC):
                     loss_epoch += loss.item()
 
                 self.accelerator.backward(loss)
+                self.accelerator.clip_grad_norm_(
+                    self.modules.parameters(), max_norm=max_norm
+                )
                 self.opt.step()
 
                 loss_epoch += loss.item()
-                if hasattr(self, "lr_sched"):
-                    # ok for cos_lr
-                    self.lr_sched.step()
 
                 for m in self.metrics:
                     if (
@@ -563,20 +573,28 @@ class MicroMind(ABC):
 
             if "val" in datasets:
                 val_metrics = self.validate()
-                if (
-                    self.accelerator.is_local_main_process
-                    and self.checkpointer is not None
-                ):
-                    self.checkpointer(
-                        self,
-                        train_metrics,
-                        val_metrics,
-                    )
             else:
-                val_metrics = train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
+                train_metrics.update({"val_loss": loss_epoch / (idx + 1)})
+                val_metrics = train_metrics
+
+            self.on_train_epoch_end()
+
+            if self.accelerator.is_local_main_process and self.checkpointer is not None:
+                self.checkpointer(
+                    self,
+                    train_metrics,
+                    val_metrics,
+                )
 
             if e >= 1 and self.debug:
                 break
+
+            if hasattr(self, "lr_sched"):
+                # ok for cos_lr
+                # self.lr_sched.step(val_metrics["val_loss"])
+
+                self.lr_sched.step()
+                print(f"sched step - new LR={self.lr_sched.get_lr()}")
 
         self.on_train_end()
         return None

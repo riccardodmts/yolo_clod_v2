@@ -27,25 +27,16 @@ from micromind.utils.yolo import (
     preprocess,
 )
 from train import YOLO
+from micromind.utils.yolo import load_config
 
 
 class Inference(YOLO):
-    def __init__(self, hparams):
-        super().__init__(hparams=hparams, m_cfg={})
+    def __init__(self, m_cfg, hparams):
+        super().__init__(m_cfg, hparams=hparams)
 
-    def forward(self, img):
-        """Executes the detection network.
-
-        Arguments
-        ---------
-        bacth : List[torch.Tensor]
-            Input to the detection network.
-
-        Returns
-        -------
-            Output of the detection network : torch.Tensor
-        """
-        backbone = self.modules["backbone"](img)
+    def forward(self, batch):
+        """Runs the forward method by calling every module."""
+        backbone = self.modules["backbone"](batch)
         neck_input = backbone[1]
         neck_input.append(self.modules["sppf"](backbone[0]))
         neck = self.modules["neck"](*neck_input)
@@ -73,6 +64,8 @@ if __name__ == "__main__":
     img_paths = [sys.argv[2]]
     for img_path in img_paths:
         image = torchvision.io.read_image(img_path)
+        if image.shape[0] == 4:
+            image = image[:3, :, :]  # Mantieni solo i primi 3 canali (RGB)
         out_paths = [
             (
                 output_folder_path
@@ -85,7 +78,8 @@ if __name__ == "__main__":
 
         pre_processed_image = preprocess(image)
 
-        model = Inference(hparams)
+        m_cfg, data_cfg = load_config(hparams.data_cfg)
+        model = Inference(m_cfg, hparams=hparams)
         # Load pretrained if passed.
         if hparams.ckpt_pretrained != "":
             model.load_modules(hparams.ckpt_pretrained)
@@ -97,11 +91,13 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             st = time.time()
-            predictions = model(pre_processed_image)
+            predictions = model.forward(pre_processed_image)
             print(f"Inference took {int(round(((time.time() - st) * 1000)))}ms")
+            breakpoint()
             post_predictions = postprocess(
                 preds=predictions[0], img=pre_processed_image, orig_imgs=image
             )
+            breakpoint()
 
         class_labels = [s.strip() for s in open(hparams.coco_names, "r").readlines()]
         draw_bounding_boxes_and_save(
@@ -112,4 +108,3 @@ if __name__ == "__main__":
         )
 
         # Exporting onnx model.
-        # model.export("model.onnx", "onnx", hparams.input_shape)

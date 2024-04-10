@@ -464,6 +464,10 @@ class Yolov8NeckOpt(Yolov8Neck):
         self.heads = heads
         self.up1 = Upsample(up[0], mode="nearest")
         self.up2 = Upsample(up[1], mode="nearest")
+
+        # print(filters, heads)
+        # breakpoint()
+
         self.n1 = XiConv(
             c_in=int(filters[1] + filters[2]),
             c_out=int(filters[1]),
@@ -471,6 +475,7 @@ class Yolov8NeckOpt(Yolov8Neck):
             gamma=3,
             skip_tensor_in=False,
         )
+
         self.n2 = XiConv(
             int(filters[0] + filters[1]),
             int(filters[0]),
@@ -483,6 +488,10 @@ class Yolov8NeckOpt(Yolov8Neck):
         the needed blocks. Otherwise the not needed blocks would be initialized
         (and thus would occupy space) but will never be used.
         """
+        self.n3 = None
+        self.n4 = None
+        self.n5 = None
+        self.n6 = None
         if self.heads[1] or self.heads[2]:
             self.n3 = XiConv(
                 int(filters[0]),
@@ -519,6 +528,75 @@ class Yolov8NeckOpt(Yolov8Neck):
             )
 
 
+class Yolov8NeckOpt_gamma2(Yolov8Neck):
+    def __init__(
+        self, filters=[256, 512, 768], up=[2, 2], heads=[True, True, True], d=1
+    ):
+        super().__init__()
+        self.heads = heads
+        self.up1 = Upsample(up[0], mode="nearest")
+        self.up2 = Upsample(up[1], mode="nearest")
+
+        self.n1 = XiConv(
+            c_in=int(filters[1] + filters[2]),
+            c_out=int(filters[1]),
+            kernel_size=3,
+            gamma=2,
+            skip_tensor_in=False,
+        )
+
+        self.n2 = XiConv(
+            int(filters[0] + filters[1]),
+            int(filters[0]),
+            kernel_size=3,
+            gamma=2,
+            skip_tensor_in=False,
+        )
+        """
+        Only if we decide to use the 2nd and 3rd detection head we define
+        the needed blocks. Otherwise the not needed blocks would be initialized
+        (and thus would occupy space) but will never be used.
+        """
+        self.n3 = None
+        self.n4 = None
+        self.n5 = None
+        self.n6 = None
+        if self.heads[1] or self.heads[2]:
+            self.n3 = XiConv(
+                int(filters[0]),
+                int(filters[0]),
+                kernel_size=3,
+                gamma=2,
+                stride=2,
+                padding=1,
+                skip_tensor_in=False,
+            )
+            self.n4 = XiConv(
+                int(filters[0] + filters[1]),
+                int(filters[1]),
+                kernel_size=3,
+                gamma=2,
+                skip_tensor_in=False,
+            )
+        if self.heads[2]:
+            self.n5 = XiConv(
+                int(filters[1]),
+                int(filters[1]),
+                gamma=2,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+                skip_tensor_in=False,
+            )
+            self.n6 = XiConv(
+                int(filters[1] + filters[2]),
+                int(filters[2]),
+                gamma=2,
+                kernel_size=3,
+                skip_tensor_in=False,
+            )
+
+
 class DetectionHead(nn.Module):
     """Implements YOLOv8's detection head.
 
@@ -537,6 +615,7 @@ class DetectionHead(nn.Module):
         super().__init__()
         self.reg_max = 16
         self.nc = nc
+        # filters = [f for f, h in zip(filters, heads) if h]
         self.nl = len(filters)
         self.no = nc + self.reg_max * 4
         self.stride = torch.tensor([8.0, 16.0, 32.0], dtype=torch.float16)
@@ -615,14 +694,16 @@ class YOLOv8(nn.Module):
         Number of classes to predict.
     """
 
-    def __init__(self, w, r, d, num_classes=80):
+    def __init__(self, w, r, d, num_classes=80, heads=[True, True, True]):
         super().__init__()
         self.net = Darknet(w, r, d)
         self.fpn = Yolov8Neck(
-            filters=[int(256 * w), int(512 * w), int(512 * w * r)], d=d
+            filters=[int(256 * w), int(512 * w), int(512 * w * r)], heads=heads, d=d
         )
         self.head = DetectionHead(
-            num_classes, filters=(int(256 * w), int(512 * w), int(512 * w * r))
+            num_classes,
+            filters=(int(256 * w), int(512 * w), int(512 * w * r)),
+            heads=heads,
         )
 
     def forward(self, x):

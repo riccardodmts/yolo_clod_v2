@@ -7,6 +7,7 @@ Authors:
     - Matteo Beltrami, 2023
     - Francesco Paissan, 2023
 """
+
 import torch
 import torch.nn as nn
 from ultralytics.utils.loss import BboxLoss, v8DetectionLoss
@@ -76,8 +77,11 @@ class Loss(v8DetectionLoss):
             [xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2
         ).split((self.reg_max * 4, self.nc), 1)
 
+        # breakpoint()
         pred_scores = pred_scores.permute(0, 2, 1).contiguous()
         pred_distri = pred_distri.permute(0, 2, 1).contiguous()
+        # print("pred scores shape ", pred_scores.shape)    # x, 8400, 80
+        # print("pred distri shape ", pred_distri.shape)    # x, 8400, 64 (reg_max * 4)
 
         dtype = pred_scores.dtype
         batch_size = pred_scores.shape[0]
@@ -85,6 +89,7 @@ class Loss(v8DetectionLoss):
             torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype)
             * self.stride[0]
         )  # image size (h,w)
+        # print(imgsz)
         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
 
         # Targets
@@ -95,20 +100,28 @@ class Loss(v8DetectionLoss):
         targets = self.preprocess(
             targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]]
         )
+
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
 
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
+        # print("pred bboxes")
+        # print(pred_bboxes.shape)
+        # print(pred_bboxes[0, 0])
 
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
-            pred_scores.detach().sigmoid(),
-            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            pred_scores.clone().detach().sigmoid(),
+            (pred_bboxes.clone().detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
             mask_gt,
         )
+
+        # print("target bboxes")
+        # print(target_bboxes.shape)
+        # print(target_bboxes[0, 0])
 
         target_scores_sum = max(target_scores.sum(), 1)
 
@@ -117,9 +130,14 @@ class Loss(v8DetectionLoss):
             self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum
         )  # BCE
 
+        # print("classification loss", loss[1])
         # Bbox loss
         if fg_mask.sum():
             target_bboxes /= stride_tensor
+            # print("target bboxes w norm")
+            # print(target_bboxes.shape)
+            # print(target_bboxes[0, 0])
+
             loss[0], loss[2] = self.bbox_loss(
                 pred_distri,
                 pred_bboxes,
@@ -133,5 +151,22 @@ class Loss(v8DetectionLoss):
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
+
+        # with open("dump.txt", "a") as f:
+        # f.write("bbox loss {}".format(loss[0].item()))
+        # f.write("\n")
+        # f.write("cls loss {}".format(loss[1].item()))
+        # f.write("\n")
+        # f.write("dfl loss {}".format(loss[2].item()))
+        # f.write("\n")
+        # f.write("total {}".format(loss.sum().item()))
+        # f.write("\n")
+        # f.write("total * batch_size {}".format(loss.sum().item() * batch_size))
+        # f.write("\n")
+        #
+        # breakpoint()
+
+        # print(torch.std_mean(batch["img"]))
+        # breakpoint()
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
